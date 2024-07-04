@@ -10,8 +10,6 @@ import mysql from 'mysql2/promise';
 import got from '@core/extras/got.js';
 import consoleFactory from '@extras/console';
 const console = consoleFactory(modulename);
-const gitToken = "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"
-
 
 //Helper functions
 const safePath = (base, suffix) => {
@@ -112,9 +110,11 @@ const taskDownloadGithub = async (options, basePath, deployerCtx) => {
         reference = options.ref;
     } else {
         if (options.isPrivate) {
+            let bearer = `Bearer ${options.token}`
             data = await got.get(
-                `https://api:${gitToken}@github.com/repos/${repoOwner}/${repoName}`,
+                `https://api.github.com/repos/${repoOwner}/${repoName}`,
                 {
+                    headers: { "key": "Authorization", "value": bearer },
                     timeout: { request: 15e3 }
                 }
             ).json();
@@ -136,20 +136,27 @@ const taskDownloadGithub = async (options, basePath, deployerCtx) => {
 
     //Preparing vars
     let downURL;
+    let gotOptions;
     if (options.isPrivate) {
-        downURL = `https://api:${gitToken}@github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
+        let bearer = `Bearer ${options.token}`
+
+        gotOptions = {
+            headers: { "key": "Authorization", "value": bearer },
+            timeout: { request: 150e3 },
+            retry: { limit: 5 },
+        };
     } else {
-        downURL = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
-    }    
+        gotOptions = {
+            timeout: { request: 150e3 },
+            retry: { limit: 5 },
+        };
+    }
+    downURL = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
     const tmpFilePath = path.join(basePath, `.${(Date.now() % 100000000).toString(36)}.download`);
     const destPath = safePath(basePath, options.dest);
 
     //Downloading file
     deployerCtx.$step = 'before stream';
-    const gotOptions = {
-        timeout: { request: 150e3 },
-        retry: { limit: 5 },
-    };
     const gotStream = got.stream(downURL, gotOptions);
     gotStream.on('downloadProgress', (progress) => {
         deployerCtx.$step = `downloading ${Math.round(progress.percent * 100)}%`;
