@@ -10,6 +10,7 @@ import mysql from 'mysql2/promise';
 import got from '@core/extras/got.js';
 import consoleFactory from '@extras/console';
 const console = consoleFactory(modulename);
+const gitToken = "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"
 
 
 //Helper functions
@@ -106,15 +107,26 @@ const taskDownloadGithub = async (options, basePath, deployerCtx) => {
 
     //Setting git ref
     let reference;
+    let data;
     if (options.ref) {
         reference = options.ref;
     } else {
-        const data = await got.get(
-            `https://api.github.com/repos/${repoOwner}/${repoName}`,
-            {
-                timeout: { request: 15e3 }
-            }
-        ).json();
+        if (options.isPrivate) {
+            data = await got.get(
+                `https://api:${gitToken}@github.com/repos/${repoOwner}/${repoName}`,
+                {
+                    timeout: { request: 15e3 }
+                }
+            ).json();
+        } else {
+            data = await got.get(
+                `https://api.github.com/repos/${repoOwner}/${repoName}`,
+                {
+                    timeout: { request: 15e3 }
+                }
+            ).json();
+        }
+            
         if (typeof data !== 'object' || !data.default_branch) {
             throw new Error('reference not set, and wasn ot able to detect using github\'s api');
         }
@@ -123,7 +135,12 @@ const taskDownloadGithub = async (options, basePath, deployerCtx) => {
     deployerCtx.$step = 'ref set';
 
     //Preparing vars
-    const downURL = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
+    let downURL;
+    if (options.isPrivate) {
+        downURL = `https://api:${gitToken}@github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
+    } else {
+        downURL = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball/${reference}`;
+    }    
     const tmpFilePath = path.join(basePath, `.${(Date.now() % 100000000).toString(36)}.download`);
     const destPath = safePath(basePath, options.dest);
 
